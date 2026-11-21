@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { stationByCode } from "../data/index.ts"
+import { fetchThroughCache } from "./cachedFetch.ts"
 import { fetchLineSchedule, formatHongKong } from "./fetchSchedule.ts"
 import type { LineScheduleView } from "./schedule.ts"
 
@@ -89,7 +90,10 @@ export function useSnapshot(url: string | null) {
   useEffect(() => {
     if (!officialSnapshot(url) || !url) return
     const controller = new AbortController()
-    void fetch(url, { signal: controller.signal, cache: "no-store" })
+    const key = url.match(/\/([A-Za-z0-9]+)\.JPG$/)?.[1]
+    void fetchThroughCache(key ? `/api/snapshot/${key}` : url, controller.signal, () =>
+      fetch(url, { signal: controller.signal, cache: "no-store" }),
+    )
       .then(async (response) => {
         const type = response.headers.get("content-type") ?? ""
         if (!response.ok || !type.includes("image")) throw new Error("unavailable")

@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview --host 0.0.0.0 --port 47321",
     "data": "node scripts/build-data.mjs",
-    "test": "node --test scripts/network.test.mjs scripts/rail-geometry.test.mjs && node --experimental-strip-types --test src/lib/*.test.ts"
+    "test": "node --test scripts/network.test.mjs scripts/rail-geometry.test.mjs src/server/liveCache.test.mjs && node --experimental-strip-types --test src/lib/*.test.ts"
   },
   "dependencies": {
     "@fontsource/noto-sans-tc": "^5.3.1",

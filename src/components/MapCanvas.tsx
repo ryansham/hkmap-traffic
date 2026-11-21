@@ -4,8 +4,8 @@ import type { ExpressionSpecification, GeoJSONSource, Map as MapLibreMap } from 
 import { cameras, lineByCode, network, stationByCode } from "../data/index.ts"
 import { CAMERA_STREET_ZOOM, cameraZoomBounds } from "../lib/cameraVisibility.ts"
 import { cameraPlaceName } from "../lib/search.ts"
-import type { LineScheduleView } from "../lib/schedule.ts"
-import { frameTrains, type TrainFix } from "../lib/trainPosition.ts"
+import { fetchTrainFeed, type TrainSighting } from "../lib/cachedFetch.ts"
+import { LINE_METERS_PER_MINUTE, locateTrain } from "../lib/trainPosition.ts"
 import { AerialControl } from "./AerialControl.ts"
 
 const STYLE = "https://tiles.openfreemap.org/styles/liberty"
@@ -60,8 +60,6 @@ type Props = {
   onClear: () => void
   onStyleError: () => void
   onStyleReady: () => void
-  trainStation: string | null
-  trainBoard: Record<string, LineScheduleView>
 }
 
 const emptyTrains = { type: "FeatureCollection" as const, features: [] }
@@ -93,7 +91,7 @@ export function MapCanvas(props: Props) {
   const mapRef = useRef<MapLibreMap | null>(null)
   const mapReadyRef = useRef(false)
   const selectedStationRef = useRef<string | null>(null)
-  const trainFixes = useRef(new globalThis.Map<string, TrainFix>())
+  const trainFeed = useRef<{ receivedAt: number; trains: TrainSighting[] } | null>(null)
   const handlers = useRef(props)
   useEffect(() => {
     handlers.current = props
@@ -373,43 +371,57 @@ export function MapCanvas(props: Props) {
 
   useEffect(() => {
     const map = mapRef.current
-    if (!props.trainStation) {
-      trainFixes.current = new globalThis.Map()
+    if (!props.showMtr) {
+      trainFeed.current = null
       const source = map?.getSource("trains") as GeoJSONSource | undefined
       source?.setData(emptyTrains)
       return
     }
-    const tick = () => {
+    let stopped = false
+    const pull = async () => {
+      if (document.hidden) return
+      const controller = new AbortController()
+      const snap = await fetchTrainFeed(controller.signal)
+      if (stopped || !snap) return
+      trainFeed.current = { receivedAt: Date.now() - snap.ageMs, trains: snap.trains }
+    }
+    const draw = () => {
       const current = mapRef.current
-      if (!current || document.hidden) return
+      const feed = trainFeed.current
+      if (!current || !feed || document.hidden) return
       const source = current.getSource("trains") as GeoJSONSource | undefined
       if (!source) return
-      const frame = frameTrains({
-        stationCode: handlers.current.trainStation,
-        byLine: handlers.current.trainBoard,
-        pathsForLine: (line) => lineByCode.get(line)?.paths ?? [],
-        colorForLine: (line) => lineByCode.get(line)?.color ?? "#1d1a16",
-        stationAt: (code) => {
-          const station = stationByCode.get(code)
-          return station ? { lng: station.lng, lat: station.lat } : undefined
-        },
-        fixes: trainFixes.current,
-        now: Date.now(),
-      })
-      trainFixes.current = frame.fixes
-      source.setData({
-        type: "FeatureCollection",
-        features: frame.trains.map((train) => ({
+      const elapsed = (Date.now() - feed.receivedAt) / 60_000
+      const features = feed.trains.flatMap((train) => {
+        const spot = locateTrain({
+          paths: lineByCode.get(train.line)?.paths ?? [],
+          stationAt: (code) => {
+            const station = stationByCode.get(code)
+            return station ? { lng: station.lng, lat: station.lat } : undefined
+          },
+          stationCode: train.station,
+          destinationCode: train.destination,
+          remainingMinutes: Math.max(0, train.minutes - elapsed),
+          metersPerMinute: LINE_METERS_PER_MINUTE[train.line] ?? 530,
+        })
+        if (!spot) return []
+        return [{
           type: "Feature" as const,
-          properties: { color: train.color, bearing: train.bearing },
-          geometry: { type: "Point" as const, coordinates: [train.lng, train.lat] },
-        })),
+          properties: { color: lineByCode.get(train.line)?.color ?? "#1d1a16", bearing: spot.bearing },
+          geometry: { type: "Point" as const, coordinates: [spot.lng, spot.lat] },
+        }]
       })
+      source.setData({ type: "FeatureCollection", features })
     }
-    tick()
-    const timer = window.setInterval(tick, 200)
-    return () => window.clearInterval(timer)
-  }, [props.trainStation, props.trainBoard])
+    void pull()
+    const poll = window.setInterval(() => void pull(), 20_000)
+    const frame = window.setInterval(draw, 300)
+    return () => {
+      stopped = true
+      window.clearInterval(poll)
+      window.clearInterval(frame)
+    }
+  }, [props.showMtr])
 
   useEffect(() => {
     const map = mapRef.current

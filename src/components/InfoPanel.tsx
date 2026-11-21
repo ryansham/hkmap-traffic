@@ -216,7 +216,7 @@ function StationBody({ code, arrivals, onClose }: { code: string; arrivals: Stat
           <button type="button" onClick={arrivals.refresh}>
             重新整理
           </button>
-          <p>此站約每 20 秒自動更新，頁面隱藏時會暫停。地圖上的列車只用這份到站時間沿路軌估算，不會再查其他車站。</p>
+          <p>此站約每 20 秒自動更新，頁面隱藏時會暫停。全圖列車由共用快取沿路軌顯示，打開車站不是看見列車的條件。</p>
         </div>
       </div>
     </>

@@ -109,6 +109,81 @@ export function locateTrain(options: {
   }
 }
 
+export type ReportedTrain = {
+  line: string
+  station: string
+  destination: string
+  minutes: number
+}
+
+export function parseLineTrains(body: unknown, line: string, station: string): ReportedTrain[] {
+  if (!body || typeof body !== "object") return []
+  const data = (body as { data?: unknown }).data
+  if (!data || typeof data !== "object") return []
+  const block = (data as Record<string, unknown>)[`${line}-${station}`]
+  if (!block || typeof block !== "object") return []
+  const trains: ReportedTrain[] = []
+  for (const bound of ["UP", "DOWN"]) {
+    const list = (block as Record<string, unknown>)[bound]
+    if (!Array.isArray(list)) continue
+    for (const item of list) {
+      if (!item || typeof item !== "object") continue
+      const row = item as { dest?: unknown; ttnt?: unknown; valid?: unknown }
+      if (row.valid === "N" || typeof row.dest !== "string" || row.dest.length === 0) continue
+      const minutes = Number(row.ttnt)
+      if (!Number.isFinite(minutes)) continue
+      trains.push({ line, station, destination: row.dest, minutes })
+    }
+  }
+  return trains
+}
+
+export function sentinelStations(
+  lines: { code: string; paths: PathShape[] }[],
+  stationAt: (code: string) => StationPoint | undefined,
+  metersPerMinute: Record<string, number>,
+  coverMinutes = 7,
+) {
+  const chosen = new Map<string, { line: string; station: string }>()
+  for (const line of lines) {
+    const speed = metersPerMinute[line.code] ?? 530
+    for (const shape of line.paths) {
+      const path = measure(shape)
+      const stops = shape.codes.flatMap((code) => {
+        const point = stationAt(code)
+        return point ? [{ code, meters: project(path, point) }] : []
+      })
+      stops.sort((a, b) => a.meters - b.meters)
+      let last = Number.NEGATIVE_INFINITY
+      stops.forEach((stop, index) => {
+        const edge = index === 0 || index === stops.length - 1
+        if (edge || (stop.meters - last) / speed >= coverMinutes) {
+          chosen.set(`${line.code}:${stop.code}`, { line: line.code, station: stop.code })
+          last = stop.meters
+        }
+      })
+    }
+  }
+  return [...chosen.values()]
+}
+
+export function dedupeTrains<T extends { line: string; destination: string; lng: number; lat: number; minutes: number }>(
+  trains: T[],
+  radiusMeters = 600,
+) {
+  const kept: T[] = []
+  for (const train of [...trains].sort((a, b) => a.minutes - b.minutes)) {
+    const sameTrain = kept.some(
+      (other) =>
+        other.line === train.line &&
+        other.destination === train.destination &&
+        haversine(other, train) < radiusMeters,
+    )
+    if (!sameTrain) kept.push(train)
+  }
+  return kept
+}
+
 export function frameTrains(options: {
   stationCode: string | null
   byLine: Record<string, LineScheduleView>

@@ -1,4 +1,5 @@
 import { stationByCode } from "../data/index.ts"
+import { fetchThroughCache } from "./cachedFetch.ts"
 import { interpretSchedule, type LineScheduleView } from "./schedule.ts"
 
 function unavailable(): LineScheduleView {
@@ -23,11 +24,9 @@ export async function fetchLineSchedule(
   url.searchParams.set("lang", "TC")
 
   try {
-    const response = await fetch(url, {
-      signal,
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    })
+    const response = await fetchThroughCache(`/api/mtr?line=${line}&sta=${station}`, signal, () =>
+      fetch(url, { signal, cache: "no-store", headers: { Accept: "application/json" } }),
+    )
     let body: unknown = null
     try {
       body = await response.json()

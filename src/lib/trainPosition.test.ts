@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import type { LineScheduleView } from "./schedule.ts"
-import { frameTrains, locateTrain, nextFix, remainingMinutes, type TrainFix } from "./trainPosition.ts"
+import { readFileSync } from "node:fs"
+import { dedupeTrains, frameTrains, LINE_METERS_PER_MINUTE, locateTrain, nextFix, parseLineTrains, remainingMinutes, sentinelStations, type TrainFix } from "./trainPosition.ts"
 
 const stations = new Map([
   ["A", { lng: 114.1, lat: 22.3 }],
@@ -64,6 +65,35 @@ describe("nextFix", () => {
     const next = nextFix(first, { id: first.id, minutes: 6, now: 30_000 })
     assert.notEqual(next, first)
     assert.ok(next.minutes > 6)
+  })
+})
+
+describe("network train watch", () => {
+  it("samples the whole railway without asking every station", () => {
+    const network = JSON.parse(readFileSync(new URL("../data/network.json", import.meta.url), "utf8"))
+    const stations = new Map(network.stations.map((station: { code: string; lng: number; lat: number }) => [station.code, station]))
+    const watches = sentinelStations(network.lines, (code) => stations.get(code), LINE_METERS_PER_MINUTE)
+    assert.ok(watches.length >= 15)
+    assert.ok(watches.length <= 80)
+    assert.ok(watches.some((item) => item.line === "ISL" && item.station === "KET"))
+    assert.ok(watches.some((item) => item.line === "ISL" && item.station === "CHW"))
+    assert.ok(watches.some((item) => item.line === "DRL"))
+  })
+
+  it("reads every listed train and keeps one marker for the same train", () => {
+    const trains = parseLineTrains(
+      { data: { "ISL-CEN": { UP: [{ dest: "CHW", ttnt: "2", valid: "Y" }, { dest: "CHW", ttnt: "6", valid: "Y" }], DOWN: [] } } },
+      "ISL",
+      "CEN",
+    )
+    assert.equal(trains.length, 2)
+    const markers = dedupeTrains([
+      { line: "ISL", destination: "CHW", minutes: 1, lng: 114.15, lat: 22.28 },
+      { line: "ISL", destination: "CHW", minutes: 4, lng: 114.1502, lat: 22.2802 },
+      { line: "ISL", destination: "CHW", minutes: 6, lng: 114.17, lat: 22.28 },
+    ])
+    assert.equal(markers.length, 2)
+    assert.equal(markers[0]?.minutes, 1)
   })
 })
 

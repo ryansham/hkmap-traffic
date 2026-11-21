@@ -5,6 +5,7 @@ import { PlaceSearch } from "./components/PlaceSearch.tsx"
 import { cameraByKey, network, stationByCode } from "./data/index.ts"
 import { useStationArrivals } from "./lib/useLiveData.ts"
 import type { Selection } from "./types.ts"
+import { APP_VERSION } from "./version.ts"
 
 function selectionId(selection: Selection | null) {
   if (!selection) return ""
@@ -84,6 +85,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>香港智慧城市地圖</h1>
+          <span className="version">v{APP_VERSION}</span>
           <div className="about-anchor" id="about-anchor">
             <button
               type="button"

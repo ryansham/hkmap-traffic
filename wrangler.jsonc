@@ -1,5 +1,6 @@
 {
   "name": "hk-smart-city-map",
+  "account_id": "8b70f29f5991fc75af511f4f5c1f1964",
   "compatibility_date": "2026-11-21",
   "assets": {
     "directory": "./dist",

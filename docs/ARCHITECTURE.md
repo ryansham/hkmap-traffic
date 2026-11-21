@@ -25,7 +25,9 @@
 
 現行正式版由 Cursor 託管。每一次發佈記在 [CHANGELOG.md](CHANGELOG.md)。公開程式在 <https://github.com/ryansham/hkmap-traffic>。
 
-`wrangler.jsonc` 只描述一份可選的 Cloudflare 靜態輸出。它不是現行正式版的發佈方式。
+`wrangler.jsonc` 只描述一份可選的 Cloudflare 靜態輸出。它不是現行正式版的發佈方式。`wrangler.cache.jsonc` 是同一帳戶上可選的列車快取 Worker。兩份設定都指向帳戶 `8b70f29f5991fc75af511f4f5c1f1964`（Ryansham@gmail.com's Account）。登入憑證留在開發機，不進版本庫。
+
+這個專案的 Cursor 代理從 `.cursor/mcp.json` 連接 `https://mcp.cloudflare.com/mcp`。第一次使用 Cloudflare 工具時，由 Cursor 做 OAuth。
 
 ## 目錄
 
@@ -48,6 +50,9 @@
 | `scripts/rail-geometry.mjs` | 把 OpenStreetMap 路軌收成每條綫的曲線 |
 | `src/data/network.json` | 98 個站和 10 條綫 |
 | `src/data/cameras.json` | 1013 個快拍點 |
+| `.cursor/mcp.json` | 這個專案的 Cloudflare MCP |
+| `wrangler.jsonc` | 可選的靜態輸出，指向已登入的 Cloudflare 帳戶 |
+| `wrangler.cache.jsonc` | 可選的列車快取 Worker，同一帳戶 |
 
 ## 建立時的資料
 

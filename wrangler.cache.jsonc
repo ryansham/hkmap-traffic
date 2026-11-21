@@ -1,5 +1,6 @@
 {
   "name": "hk-train-cache",
+  "account_id": "8b70f29f5991fc75af511f4f5c1f1964",
   "main": "src/server/worker.ts",
   "compatibility_date": "2026-11-21"
 }

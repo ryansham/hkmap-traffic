@@ -44,18 +44,20 @@
 | `src/lib/useLiveData.ts` | 打開的車站每 20 秒更新；點開快拍點才下載照片 |
 | `src/lib/aerialView.ts` | 3D 相機的俯仰、方向和縮放 |
 | `scripts/build-data.mjs` | 離線重建 `src/data/` |
+| `scripts/rail-geometry.mjs` | 把 OpenStreetMap 路軌收成每條綫的曲線 |
 | `src/data/network.json` | 98 個站和 10 條綫 |
 | `src/data/cameras.json` | 1013 個快拍點 |
 
 ## 建立時的資料
 
-`npm run data` 執行 `scripts/build-data.mjs`，讀三份官方資料：
+`npm run data` 執行 `scripts/build-data.mjs`，讀這些資料：
 
 - 路綫與站序：<https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv>
 - 車站範圍：地政總署 CSDI `mtr_venue_polygon`。座標用範圍方框的中心。
 - 快拍位置：<https://static.data.gov.hk/td/traffic-snapshot-images/code/Traffic_Camera_Locations_Tc.csv>
+- 路軌形狀：OpenStreetMap 裡網絡為港鐵的地鐵路綫。只取行走中的軌道，不取月台。每段車站之間沿這些軌道找最短路徑，再把 8 米以內的多餘轉折收掉。關係編號存在 `scripts/mtr-route-ids.json`，Overpass 可用時會更新。
 
-中文站名的 `茘` / `荔`、`啓` / `啟` 會摺成後者。馬場站不在港鐵站序裡，用地政總署範圍補上，英文名 Racecourse。東鐵主綫不經過馬場；馬場支綫是沙田、馬場、大學。將軍澳綫另有康城支綫。
+中文站名的 `茘` / `荔`、`啓` / `啟` 會摺成後者。馬場站不在港鐵站序裡，用地政總署範圍補上，英文名 Racecourse。東鐵主綫不經過馬場；馬場支綫是沙田、馬場、大學。將軍澳綫另有康城支綫。路軌是曲線，不是車站之間的直線。車站圓點仍放在地政總署範圍的中心，所以大型車站的圓點可以離路軌幾十米。
 
 快拍點 `AID10120` 的官方座標離開深圳灣公路大橋約 7 公里。建立時改放在大橋北端 `113.9555, 22.47685`。
 
@@ -81,7 +83,7 @@ MapLibre 使用上面的 Liberty 樣式。Worker 在 `src/main.tsx` 用 `setWork
 
 初始視野蓋住香港。縮放約 10.4，最小 9，最大 18，最大俯仰 70 度。
 
-港鐵每條綫有白邊，並且按綫偏移，重疊的路段仍然分得開。車站是白點，選中的站會放大。快拍點是深色圓點。
+港鐵每條綫沿著真實路軌畫成曲線，有白邊，並且按綫偏移，重疊的路段仍然分得開。車站是白點，選中的站會放大。快拍點是深色圓點。
 
 快拍點的出現規則在 `cameraZoomBounds`：
 

@@ -28,6 +28,7 @@ npm run build
 - 到站班次：[港鐵實時列車服務資訊](https://data.gov.hk/tc-data/dataset/mtr-data2-nexttrain-data)
 - 路綫與站序：[港鐵綫（輕鐵除外）及車站](https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv)。馬場站不在這份清單，位置用地政總署的車站範圍補上。
 - 車站位置：地政總署 CSDI 港鐵站範圍
+- 路軌形狀：[OpenStreetMap](https://www.openstreetmap.org/) 的港鐵路綫。頁面不會每次向 OpenStreetMap 讀取，形狀在建立資料時寫進 `src/data/network.json`。
 - 交通快拍：[運輸署交通情況快拍圖像](https://data.gov.hk/tc-data/dataset/hk-td-tis_2-traffic-snapshot-images)
 
 車站位置在建立時寫進專案，頁面不會每次向地政總署索取。到站和照片則在點開時即時讀取。

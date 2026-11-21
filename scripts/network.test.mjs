@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { describe, it } from "node:test"
+import { maxOffsetFromChords } from "./rail-geometry.mjs"
 
 const network = JSON.parse(readFileSync(new URL("../src/data/network.json", import.meta.url), "utf8"))
 const cameras = JSON.parse(readFileSync(new URL("../src/data/cameras.json", import.meta.url), "utf8"))
@@ -45,6 +46,21 @@ describe("bundled network", () => {
     assert.equal(tko.paths[0].codes.includes("LHP"), false)
     assert.deepEqual(tko.paths[1].codes, ["TKO", "LHP"])
     assert.equal(station("LHP").terminusLines.includes("TKL"), true)
+  })
+
+  it("bends the Airport Express along the railway instead of station chords", () => {
+    const airport = line("AEL")
+    const stops = airport.paths[0].codes.map(station)
+    const offset = maxOffsetFromChords(airport.paths[0].coordinates, stops)
+    assert.ok(offset > 800, `expected a geographic curve, offset was ${Math.round(offset)}m`)
+    for (const record of network.lines) {
+      for (const path of record.paths) {
+        assert.ok(path.coordinates.length > path.codes.length, `${record.code} is still a station chord`)
+        for (const [lng, lat] of path.coordinates) {
+          assert.ok(lng > 113.75 && lng < 114.5 && lat > 22.12 && lat < 22.6)
+        }
+      }
+    }
   })
 
   it("knows Admiralty and Central serve the expected lines", () => {

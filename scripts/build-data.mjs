@@ -1,4 +1,5 @@
-import { writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { traceTrackJoiningGaps, waysFromOsm, stationOffsets, maxOffsetFromChords } from "./rail-geometry.mjs"
 
 const UA = "hk-smart-city-map/0.1 (classroom preview)"
 
@@ -199,20 +200,117 @@ function terminusLines(code) {
   return result
 }
 
+const railWays = await loadRailWays()
 const lines = LINES.map((line) => {
+  const ways = railWays.get(line.code)
+  if (!ways || ways.length === 0) throw new Error(`No OpenStreetMap track for ${line.code}`)
   const paths = DRAW[line.code].map((instruction) => {
     const codes = instruction.codes ?? orderedCodes(line.code, instruction.direction)
-    return {
-      codes,
-      coordinates: codes.map((code) => {
-        const point = placed.get(code)
-        if (!point) throw new Error(`Missing coordinate for ${code}`)
-        return [point.lng, point.lat]
-      }),
-    }
+    const stops = codes.map((code) => {
+      const point = placed.get(code)
+      if (!point) throw new Error(`Missing coordinate for ${code}`)
+      return { code, lng: point.lng, lat: point.lat }
+    })
+    const coordinates = traceTrackJoiningGaps(ways, stops)
+    const offset = Math.round(maxOffsetFromChords(coordinates, stops))
+    const furthest = stationOffsets(coordinates, stops).sort((a, b) => b.meters - a.meters)[0]
+    console.log(
+      `${line.code} ${codes[0]}–${codes.at(-1)}: ${coordinates.length} points, curve ${offset}m, furthest station ${furthest.code} ${Math.round(furthest.meters)}m`,
+    )
+    return { codes, coordinates }
   })
   return { ...line, paths }
 })
+
+async function loadRailWays() {
+  const ids = await routeIds()
+  const cache = "/tmp/mtr-relation-cache"
+  mkdirSync(cache, { recursive: true })
+  const ways = new Map()
+  for (const [code, relationIds] of Object.entries(ids)) {
+    const byId = new Map()
+    for (const id of relationIds) {
+      const full = await relationFull(id, cache)
+      for (const way of waysFromOsm(full.elements)) byId.set(way.id, way)
+    }
+    ways.set(code, [...byId.values()])
+  }
+  return ways
+}
+
+async function relationFull(id, cache) {
+  const path = `${cache}/${id}.json`
+  if (existsSync(path)) return JSON.parse(readFileSync(path, "utf8"))
+  const full = await fetchJson(`https://www.openstreetmap.org/api/0.6/relation/${id}/full.json`)
+  writeFileSync(path, JSON.stringify(full))
+  await delay(250)
+  return full
+}
+
+async function routeIds() {
+  const fallback = JSON.parse(readFileSync(new URL("./mtr-route-ids.json", import.meta.url), "utf8"))
+  try {
+    const response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: {
+        "User-Agent": UA,
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        data: `[out:json][timeout:20];relation["type"="route"]["route"="subway"]["network"="港鐵 MTR"];out tags;`,
+      }),
+      signal: AbortSignal.timeout(20_000),
+    })
+    if (!response.ok) throw new Error(`Overpass returned ${response.status}`)
+    const data = await response.json()
+    const discovered = {}
+    for (const element of data.elements ?? []) {
+      const ref = element.tags?.ref
+      if (!ref || !fallback[ref]) continue
+      discovered[ref] ??= []
+      discovered[ref].push(element.id)
+    }
+    if (Object.keys(discovered).length === Object.keys(fallback).length) {
+      for (const ref of Object.keys(discovered)) discovered[ref].sort((a, b) => a - b)
+      writeFileSync(new URL("./mtr-route-ids.json", import.meta.url), `${JSON.stringify(discovered, null, 2)}\n`)
+      return discovered
+    }
+  } catch (error) {
+    console.log(`Using saved MTR route ids (${error.message})`)
+  }
+  return fallback
+}
+
+async function fetchJson(url, body) {
+  let lastError
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        method: body ? "POST" : "GET",
+        headers: { "User-Agent": UA, Accept: "application/json" },
+        body,
+        signal: AbortSignal.timeout(40_000),
+      })
+      if (response.status === 429 || response.status >= 500) {
+        lastError = new Error(`${url} returned ${response.status}`)
+        await delay(1000 * (attempt + 1))
+        continue
+      }
+      if (!response.ok) throw new Error(`${url} returned ${response.status}`)
+      return await response.json()
+    } catch (error) {
+      lastError = error
+      if (error?.name !== "TimeoutError") throw error
+      await delay(1000 * (attempt + 1))
+    }
+  }
+  throw lastError
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 const stationList = [...stations.values()]
   .map((station) => {

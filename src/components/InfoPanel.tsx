@@ -15,7 +15,7 @@ export function InfoPanel({ selection, onClose }: Props) {
       {selection.kind === "station" ? (
         <StationBody code={selection.code} onClose={onClose} />
       ) : (
-        <CameraBody cameraKey={selection.key} onClose={onClose} />
+        <CameraBody key={selection.key} cameraKey={selection.key} onClose={onClose} />
       )}
     </aside>
   )

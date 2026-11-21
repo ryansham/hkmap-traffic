@@ -64,6 +64,7 @@ function layerIds(prefix: string) {
 export function MapCanvas(props: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
+  const mapReadyRef = useRef(false)
   const selectedStationRef = useRef<string | null>(null)
   const handlers = useRef(props)
   useEffect(() => {
@@ -104,6 +105,7 @@ export function MapCanvas(props: Props) {
     const failed = window.setTimeout(() => handlers.current.onStyleError(), 15000)
     map.on("load", () => {
       window.clearTimeout(failed)
+      mapReadyRef.current = true
       handlers.current.onStyleReady()
       for (const source of lineSources) {
         map.addSource(source.id, { type: "geojson", data: source.data })
@@ -234,6 +236,7 @@ export function MapCanvas(props: Props) {
 
     return () => {
       window.clearTimeout(failed)
+      mapReadyRef.current = false
       map.remove()
       mapRef.current = null
     }
@@ -319,8 +322,14 @@ export function MapCanvas(props: Props) {
         essential: true,
       })
     }
-    if (map.isStyleLoaded()) fly()
-    else map.once("load", fly)
+    if (mapReadyRef.current) {
+      fly()
+      return
+    }
+    map.once("load", fly)
+    return () => {
+      map.off("load", fly)
+    }
   }, [props.focusNonce, props.focusTarget])
 
   return <div ref={containerRef} className="map-canvas" />

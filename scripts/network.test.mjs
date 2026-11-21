@@ -57,6 +57,15 @@ describe("bundled network", () => {
 })
 
 describe("bundled cameras", () => {
+  it("keeps the last northbound Shenzhen Bay camera at the bridge's northern end", () => {
+    const northbound = cameras.find((camera) => camera.key === "AID10120")
+    const previous = cameras.find((camera) => camera.key === "AID10119")
+    assert.ok(northbound.lat > previous.lat)
+    assert.ok(northbound.lng < previous.lng)
+    assert.ok(Math.abs(northbound.lat - 22.47685) < 0.0001)
+    assert.ok(Math.abs(northbound.lng - 113.9555) < 0.0001)
+  })
+
   it("keeps every official snapshot point", () => {
     assert.equal(cameras.length, 1013)
     const keys = new Set()

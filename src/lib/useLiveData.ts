@@ -113,7 +113,7 @@ export function useSnapshot(url: string | null) {
   const allowed = officialSnapshot(url)
   const ready = Boolean(url && result?.url === url && result.attempt === attempt)
   const failed = Boolean(url && failedAttempt?.url === url && failedAttempt.attempt === attempt)
-  const phase = !url ? "idle" : !allowed || failed ? "error" : ready ? "ready" : "loading"
+  const phase = !url ? "idle" : !allowed ? "error" : ready ? "ready" : failed ? "error" : "loading"
 
   return {
     phase,

@@ -233,19 +233,27 @@ const cameraRows = cameraText
   .split(/\r?\n/)
   .filter((line) => line.trim())
 const cameraHeader = cameraRows[0].split("\t").map((item) => item.replace(/^\uFEFF/, "").trim())
+// The published northbound camera (7) sits about 7 km south-east of the bridge.
+// Cameras (1)–(6) pair with the southbound sequence in reverse, leaving
+// southbound (1) as the northern end. Keep (7) beside that end.
+const cameraCorrections = {
+  AID10120: { lng: 113.9555, lat: 22.47685 },
+}
+
 const cameras = cameraRows.slice(1).map((line) => {
   const cells = line.split("\t")
   const record = {}
   cameraHeader.forEach((key, index) => {
     record[key] = (cells[index] ?? "").trim()
   })
+  const correction = cameraCorrections[record.key]
   return {
     key: record.key,
     region: record.region,
     district: record.district,
     description: record.description,
-    lng: Number(record.longitude),
-    lat: Number(record.latitude),
+    lng: correction?.lng ?? Number(record.longitude),
+    lat: correction?.lat ?? Number(record.latitude),
     url: record.url,
   }
 })

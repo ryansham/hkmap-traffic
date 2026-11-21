@@ -42,7 +42,9 @@ export class AerialControl implements IControl {
   private toggle() {
     const map = this.map
     if (!map) return
-    this.aerial = !this.aerial
+    const nextAerial = !this.aerial
+    map.stop()
+    this.aerial = nextAerial
     if (this.aerial) {
       this.setGestures(true)
       map.easeTo({

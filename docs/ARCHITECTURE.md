@@ -23,9 +23,9 @@
 
 車站座標、路綫和快拍點清單在建立資料時寫進 `src/data/`。頁面不會每次向地政總署要座標。
 
-現行正式版由 Cursor 託管。每一次發佈記在 [CHANGELOG.md](CHANGELOG.md)。公開程式在 <https://github.com/ryansham/hkmap-traffic>。
+同一份 `v0.7.0` 地圖有兩個公開地址。Cursor 託管 <https://hkmap-traffic.apps.grok.bot>。Cloudflare Worker `hk-smart-city-map` 託管 <https://hk-smart-city-map.ryansham.workers.dev>。每一次發佈記在 [CHANGELOG.md](CHANGELOG.md)。公開程式在 <https://github.com/ryansham/hkmap-traffic>。
 
-`wrangler.jsonc` 只描述一份可選的 Cloudflare 靜態輸出。它不是現行正式版的發佈方式。`wrangler.cache.jsonc` 是同一帳戶上可選的列車快取 Worker。兩份設定都指向帳戶 `8b70f29f5991fc75af511f4f5c1f1964`（Ryansham@gmail.com's Account）。登入憑證留在開發機，不進版本庫。
+`wrangler.jsonc` 是這份靜態地圖的 Cloudflare 設定，輸出目錄是 `dist`。`wrangler.cache.jsonc` 仍是同一帳戶上尚未發佈的列車快取 Worker。兩份設定都指向帳戶 `8b70f29f5991fc75af511f4f5c1f1964`（Ryansham@gmail.com's Account）。登入憑證留在開發機，不進版本庫。
 
 這個專案的 Cursor 代理從 `.cursor/mcp.json` 連接 `https://mcp.cloudflare.com/mcp`。第一次使用 Cloudflare 工具時，由 Cursor 做 OAuth。
 
@@ -51,7 +51,7 @@
 | `src/data/network.json` | 98 個站和 10 條綫 |
 | `src/data/cameras.json` | 1013 個快拍點 |
 | `.cursor/mcp.json` | 這個專案的 Cloudflare MCP |
-| `wrangler.jsonc` | 可選的靜態輸出，指向已登入的 Cloudflare 帳戶 |
+| `wrangler.jsonc` | 已發佈的靜態地圖 Worker `hk-smart-city-map` |
 | `wrangler.cache.jsonc` | 可選的列車快取 Worker，同一帳戶 |
 
 ## 建立時的資料

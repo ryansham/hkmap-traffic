@@ -6,6 +6,15 @@
 
 2026-11-21 首次發佈和 CodeRabbit 再發佈這兩則，是這份紀錄建立之前已經上線的版本，由當時代碼提交還原。
 
+## 2026-11-21 — 同一份地圖發到 Cloudflare Workers
+
+- 已發佈：Cloudflare Workers，<https://hk-smart-city-map.ryansham.workers.dev>
+- 帳戶：Ryansham@gmail.com's Account（`8b70f29f5991fc75af511f4f5c1f1964`）
+- Worker：`hk-smart-city-map`
+- 地圖程式：`8a80965`，頁首版本仍是 `v0.7.0`
+- Worker 版本：`6c479dba-56b2-4487-8cc3-808aa6f3f715`（2026-11-21 15:50 香港時間）
+- Cursor 上的 <https://hkmap-traffic.apps.grok.bot> 維持原址。列車快取 Worker 沒有發佈。
+
 ## 2026-11-21 — 正式版沒有快取時仍顯示全圖列車 v0.7.0
 
 - 目標：Cursor 上的 hkmap-traffic，<https://hkmap-traffic.apps.grok.bot>

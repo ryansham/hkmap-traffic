@@ -15,6 +15,7 @@ export default function App() {
   const [query, setQuery] = useState("")
   const [styleError, setStyleError] = useState(false)
   const [focus, setFocus] = useState<{ nonce: number; lng: number; lat: number } | null>(null)
+  const [legendOpen, setLegendOpen] = useState(() => window.matchMedia("(min-width: 761px)").matches)
 
   const matches = useMemo(() => {
     const text = fold(query)
@@ -99,18 +100,25 @@ export default function App() {
           onStyleError={() => setStyleError(true)}
           onStyleReady={() => setStyleError(false)}
         />
-        <div className="legend">
-          {network.lines.map((line) => (
-            <span key={line.code}>
-              <i style={{ background: line.color }} />
-              {line.name}
+        <details
+          className="legend"
+          open={legendOpen}
+          onToggle={(event) => setLegendOpen(event.currentTarget.open)}
+        >
+          <summary>圖例</summary>
+          <div className="legend-body">
+            {network.lines.map((line) => (
+              <span key={line.code}>
+                <i style={{ background: line.color }} />
+                {line.name}
+              </span>
+            ))}
+            <span>
+              <i className="camera-swatch" />
+              交通快拍
             </span>
-          ))}
-          <span>
-            <i className="camera-swatch" />
-            交通快拍
-          </span>
-        </div>
+          </div>
+        </details>
         {styleError ? (
           <p className="map-error" role="alert">
             底圖暫時載入不到。街道圖由 OpenFreeMap 提供，請稍後再打開。

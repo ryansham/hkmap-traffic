@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react"
 import { Map, NavigationControl } from "maplibre-gl"
 import type { ExpressionSpecification, Map as MapLibreMap } from "maplibre-gl"
 import { cameras, network } from "../data/index.ts"
+import { AerialControl } from "./AerialControl.ts"
 
 const STYLE = "https://tiles.openfreemap.org/styles/liberty"
 
@@ -80,20 +81,24 @@ export function MapCanvas(props: Props) {
       zoom: 10.4,
       minZoom: 9,
       maxZoom: 18,
+      maxPitch: 70,
       maxBounds: [
         [113.45, 21.85],
         [114.85, 22.75],
       ],
       attributionControl: { compact: true },
       dragRotate: false,
-      pitchWithRotate: false,
+      pitchWithRotate: true,
+      touchPitch: false,
       locale: {
         "NavigationControl.ZoomIn": "放大",
         "NavigationControl.ZoomOut": "縮小",
         "NavigationControl.ResetBearing": "重設方向",
       },
     })
-    map.addControl(new NavigationControl({ showCompass: false }), "top-right")
+    map.addControl(new NavigationControl({ showCompass: true, visualizePitch: true }), "top-right")
+    map.addControl(new AerialControl(), "top-right")
+    map.touchZoomRotate.disableRotation()
     mapRef.current = map
 
     const failed = window.setTimeout(() => handlers.current.onStyleError(), 15000)
@@ -305,9 +310,12 @@ export function MapCanvas(props: Props) {
     const target = props.focusTarget
     if (!map || !target) return
     const fly = () => {
+      const pitched = map.getPitch() > 10
       map.flyTo({
         center: [target.lng, target.lat],
-        zoom: Math.max(map.getZoom(), 14.5),
+        zoom: Math.max(map.getZoom(), pitched ? 15.7 : 14.5),
+        pitch: map.getPitch(),
+        bearing: map.getBearing(),
         essential: true,
       })
     }

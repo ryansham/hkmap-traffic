@@ -4,6 +4,7 @@ import { fetchLineSchedule, formatHongKong } from "./fetchSchedule.ts"
 import type { LineScheduleView } from "./schedule.ts"
 
 const REFRESH_MS = 20_000
+const EMPTY_BOARD: Record<string, LineScheduleView> = {}
 
 export function useStationArrivals(code: string | null) {
   const [result, setResult] = useState<{
@@ -45,23 +46,30 @@ export function useStationArrivals(code: string | null) {
 
     void load()
     const timer = window.setInterval(() => {
-      void load()
+      if (!document.hidden) void load()
     }, REFRESH_MS)
+    const onVisible = () => {
+      if (!document.hidden) void load()
+    }
+    document.addEventListener("visibilitychange", onVisible)
 
     return () => {
       disposed = true
       active?.abort()
       window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", onVisible)
     }
   }, [attempt, code])
 
   const current = code && result?.code === code ? result : null
   return {
     phase: !code ? "idle" : current ? "ready" : "loading",
-    byLine: current?.byLine ?? {},
+    byLine: current?.byLine ?? EMPTY_BOARD,
     refresh: () => setAttempt((value) => value + 1),
   } as const
 }
+
+export type StationArrivals = ReturnType<typeof useStationArrivals>
 
 function officialSnapshot(url: string | null) {
   return Boolean(url && url.startsWith("https://tdcctv.data.one.gov.hk/") && url.endsWith(".JPG"))

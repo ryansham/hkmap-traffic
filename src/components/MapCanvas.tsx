@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react"
 import { Map, NavigationControl } from "maplibre-gl"
-import type { ExpressionSpecification, Map as MapLibreMap } from "maplibre-gl"
-import { cameras, network } from "../data/index.ts"
+import type { ExpressionSpecification, GeoJSONSource, Map as MapLibreMap } from "maplibre-gl"
+import { cameras, lineByCode, network, stationByCode } from "../data/index.ts"
 import { CAMERA_STREET_ZOOM, cameraZoomBounds } from "../lib/cameraVisibility.ts"
 import { cameraPlaceName } from "../lib/search.ts"
+import type { LineScheduleView } from "../lib/schedule.ts"
+import { frameTrains, type TrainFix } from "../lib/trainPosition.ts"
 import { AerialControl } from "./AerialControl.ts"
 
 const STYLE = "https://tiles.openfreemap.org/styles/liberty"
@@ -58,6 +60,28 @@ type Props = {
   onClear: () => void
   onStyleError: () => void
   onStyleReady: () => void
+  trainStation: string | null
+  trainBoard: Record<string, LineScheduleView>
+}
+
+const emptyTrains = { type: "FeatureCollection" as const, features: [] }
+
+function trainArrow() {
+  const canvas = document.createElement("canvas")
+  canvas.width = 32
+  canvas.height = 32
+  const context = canvas.getContext("2d")
+  if (!context) return null
+  context.translate(16, 16)
+  context.beginPath()
+  context.moveTo(0, -11)
+  context.lineTo(8, 10)
+  context.lineTo(0, 5)
+  context.lineTo(-8, 10)
+  context.closePath()
+  context.fillStyle = "#fffdf8"
+  context.fill()
+  return context.getImageData(0, 0, 32, 32)
 }
 
 function layerIds(prefix: string) {
@@ -69,6 +93,7 @@ export function MapCanvas(props: Props) {
   const mapRef = useRef<MapLibreMap | null>(null)
   const mapReadyRef = useRef(false)
   const selectedStationRef = useRef<string | null>(null)
+  const trainFixes = useRef(new globalThis.Map<string, TrainFix>())
   const handlers = useRef(props)
   useEffect(() => {
     handlers.current = props
@@ -206,6 +231,35 @@ export function MapCanvas(props: Props) {
         },
       })
 
+      const arrow = trainArrow()
+      if (arrow && !map.hasImage("train-arrow")) map.addImage("train-arrow", arrow, { pixelRatio: 2 })
+      map.addSource("trains", { type: "geojson", data: emptyTrains })
+      map.addLayer({
+        id: "trains",
+        type: "circle",
+        source: "trains",
+        paint: {
+          "circle-radius": 7,
+          "circle-color": ["get", "color"],
+          "circle-stroke-color": "#fffdf8",
+          "circle-stroke-width": 2,
+        },
+      })
+      map.addLayer({
+        id: "train-arrows",
+        type: "symbol",
+        source: "trains",
+        layout: {
+          "icon-image": "train-arrow",
+          "icon-size": 0.7,
+          "icon-rotate": ["get", "bearing"],
+          "icon-rotation-alignment": "map",
+          "icon-pitch-alignment": "viewport",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+      })
+
       map.fitBounds(
         [
           [113.84, 22.2],
@@ -257,6 +311,8 @@ export function MapCanvas(props: Props) {
       for (const id of layerIds("mtr")) visibility(id, props.showMtr)
       visibility("stations", props.showMtr)
       visibility("station-labels", props.showMtr)
+      visibility("trains", props.showMtr)
+      visibility("train-arrows", props.showMtr)
       const bounds = cameraZoomBounds(props.showCameras)
       visibility("cameras", true)
       visibility("camera-labels", true)
@@ -314,6 +370,46 @@ export function MapCanvas(props: Props) {
     window.addEventListener("resize", applyPadding)
     return () => window.removeEventListener("resize", applyPadding)
   }, [props.panelOpen, props.sheetHeight])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!props.trainStation) {
+      trainFixes.current = new globalThis.Map()
+      const source = map?.getSource("trains") as GeoJSONSource | undefined
+      source?.setData(emptyTrains)
+      return
+    }
+    const tick = () => {
+      const current = mapRef.current
+      if (!current || document.hidden) return
+      const source = current.getSource("trains") as GeoJSONSource | undefined
+      if (!source) return
+      const frame = frameTrains({
+        stationCode: handlers.current.trainStation,
+        byLine: handlers.current.trainBoard,
+        pathsForLine: (line) => lineByCode.get(line)?.paths ?? [],
+        colorForLine: (line) => lineByCode.get(line)?.color ?? "#1d1a16",
+        stationAt: (code) => {
+          const station = stationByCode.get(code)
+          return station ? { lng: station.lng, lat: station.lat } : undefined
+        },
+        fixes: trainFixes.current,
+        now: Date.now(),
+      })
+      trainFixes.current = frame.fixes
+      source.setData({
+        type: "FeatureCollection",
+        features: frame.trains.map((train) => ({
+          type: "Feature" as const,
+          properties: { color: train.color, bearing: train.bearing },
+          geometry: { type: "Point" as const, coordinates: [train.lng, train.lat] },
+        })),
+      })
+    }
+    tick()
+    const timer = window.setInterval(tick, 200)
+    return () => window.clearInterval(timer)
+  }, [props.trainStation, props.trainBoard])
 
   useEffect(() => {
     const map = mapRef.current

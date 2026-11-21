@@ -41,7 +41,8 @@
 | `src/lib/nextTrains.ts` | 抽屜先露出的最近兩班車 |
 | `src/lib/schedule.ts` | 把港鐵 JSON 解讀成畫面可以用的班次 |
 | `src/lib/fetchSchedule.ts` | 讀港鐵到站 API |
-| `src/lib/useLiveData.ts` | 打開的車站每 20 秒更新；點開快拍點才下載照片 |
+| `src/lib/useLiveData.ts` | 打開的車站每 20 秒更新；分頁隱藏時暫停；點開快拍點才下載照片 |
+| `src/lib/trainPosition.ts` | 用到站時間把下一班車放上路軌 |
 | `src/lib/aerialView.ts` | 3D 相機的俯仰、方向和縮放 |
 | `scripts/build-data.mjs` | 離線重建 `src/data/` |
 | `scripts/rail-geometry.mjs` | 把 OpenStreetMap 路軌收成每條綫的曲線 |
@@ -63,7 +64,7 @@
 
 ## 打開頁面之後的資料
 
-到站班次只查正在看的車站，約每 20 秒更新一次：
+到站班次只查正在看的車站，約每 20 秒更新一次。瀏覽器分頁隱藏時暫停，回到頁面再查一次：
 
 `https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line={綫}&sta={站}&lang=TC`
 
@@ -76,6 +77,8 @@
 - 取不到資料，包括 HTTP 429 和 500
 
 快拍照片在點開該點時才下載：`https://tdcctv.data.one.gov.hk/{key}.JPG`。切換到另一個快拍點會清掉上一張的錯誤。
+
+打開車站時，每個方向的下一班車會畫在路軌上。位置用到站分鐘，乘上該綫的平均速度，從車站沿路軌往回推。速度是估算，不是港鐵公布的即時車速。到站分鐘是整數，所以兩次查詢之間列車會繼續向前走，分鐘沒有變細時不會把它拉回去。不會為了畫列車再查其他車站。頁面約每 0.2 秒只更新這幾個點，不重畫整個介面。
 
 ## 地圖
 

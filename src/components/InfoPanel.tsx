@@ -4,11 +4,12 @@ import { formatMtrClock } from "../lib/fetchSchedule.ts"
 import { summarizeNextTrains } from "../lib/nextTrains.ts"
 import type { LineScheduleView } from "../lib/schedule.ts"
 import { cameraPlaceName } from "../lib/search.ts"
-import { useSnapshot, useStationArrivals } from "../lib/useLiveData.ts"
+import { useSnapshot, type StationArrivals } from "../lib/useLiveData.ts"
 import type { Selection } from "../types.ts"
 
 type Props = {
   selection: Selection
+  arrivals: StationArrivals
   expanded: boolean
   onExpandedChange: (expanded: boolean) => void
   onHeight: (height: number) => void
@@ -19,7 +20,7 @@ function isNarrow() {
   return window.matchMedia("(max-width: 760px)").matches
 }
 
-export function InfoPanel({ selection, expanded, onExpandedChange, onHeight, onClose }: Props) {
+export function InfoPanel({ selection, arrivals, expanded, onExpandedChange, onHeight, onClose }: Props) {
   const panelRef = useRef<HTMLElement>(null)
   const [shift, setShift] = useState(0)
 
@@ -49,7 +50,7 @@ export function InfoPanel({ selection, expanded, onExpandedChange, onHeight, onC
         onShift={setShift}
       />
       {selection.kind === "station" ? (
-        <StationBody code={selection.code} onClose={onClose} />
+        <StationBody code={selection.code} arrivals={arrivals} onClose={onClose} />
       ) : (
         <CameraBody key={selection.key} cameraKey={selection.key} onClose={onClose} />
       )}
@@ -135,9 +136,8 @@ function CloseButton({ onClose }: { onClose: () => void }) {
   )
 }
 
-function StationBody({ code, onClose }: { code: string; onClose: () => void }) {
+function StationBody({ code, arrivals, onClose }: { code: string; arrivals: StationArrivals; onClose: () => void }) {
   const station = stationByCode.get(code)
-  const arrivals = useStationArrivals(code)
   if (!station) {
     return (
       <div className="panel-scroll">
@@ -216,7 +216,7 @@ function StationBody({ code, onClose }: { code: string; onClose: () => void }) {
           <button type="button" onClick={arrivals.refresh}>
             重新整理
           </button>
-          <p>此站約每 20 秒自動更新。只會查詢你正在看的車站。</p>
+          <p>此站約每 20 秒自動更新，頁面隱藏時會暫停。地圖上的列車只用這份到站時間沿路軌估算，不會再查其他車站。</p>
         </div>
       </div>
     </>

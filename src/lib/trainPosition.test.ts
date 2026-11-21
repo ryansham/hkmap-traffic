@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import type { LineScheduleView } from "./schedule.ts"
 import { readFileSync } from "node:fs"
-import { dedupeTrains, frameTrains, LINE_METERS_PER_MINUTE, locateTrain, nextFix, parseLineTrains, remainingMinutes, sentinelStations, type TrainFix } from "./trainPosition.ts"
+import { assembleTrainFeed, dedupeTrains, frameTrains, LINE_METERS_PER_MINUTE, locateTrain, nextFix, parseLineTrains, remainingMinutes, sentinelStations, type TrainFix } from "./trainPosition.ts"
 
 const stations = new Map([
   ["A", { lng: 114.1, lat: 22.3 }],
@@ -94,6 +94,25 @@ describe("network train watch", () => {
     ])
     assert.equal(markers.length, 2)
     assert.equal(markers[0]?.minutes, 1)
+  })
+})
+
+describe("assembleTrainFeed", () => {
+  it("builds train positions from sampled station replies", async () => {
+    const asked: string[] = []
+    const trains = await assembleTrainFeed({
+      lines: [{ code: "ISL", paths }],
+      stationAt: (code) => stations.get(code),
+      metersPerMinute: { ISL: 500 },
+      fetchBody: async (line, station) => {
+        asked.push(`${line}:${station}`)
+        return { data: { [`${line}-${station}`]: { UP: [{ dest: "C", ttnt: "2", valid: "Y" }], DOWN: [] } } }
+      },
+    })
+    assert.ok(asked.includes("ISL:A"))
+    assert.ok(asked.includes("ISL:C"))
+    assert.ok(trains.length > 0)
+    assert.equal(trains[0]?.line, "ISL")
   })
 })
 

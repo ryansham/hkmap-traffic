@@ -1,4 +1,10 @@
+import { network, stationByCode } from "../data/index.ts"
+import { assembleTrainFeed, LINE_METERS_PER_MINUTE } from "./trainPosition.ts"
+
 const LIVE_CACHE_ORIGIN = ""
+const SCHEDULE_TTL_MS = 20_000
+const scheduleCache = new Map<string, { expiresAt: number; body: unknown }>()
+const scheduleInflight = new Map<string, Promise<unknown>>()
 
 function sources(path: string) {
   const urls = [path]
@@ -41,7 +47,39 @@ export async function fetchTrainFeed(signal: AbortSignal): Promise<{ ageMs: numb
       if (error instanceof DOMException && error.name === "AbortError") throw error
     }
   }
-  return null
+  const trains = await assembleTrainFeed({
+    lines: network.lines,
+    stationAt: (code) => stationByCode.get(code),
+    fetchBody: (line, station) => readSchedule(line, station, signal),
+    metersPerMinute: LINE_METERS_PER_MINUTE,
+  })
+  return { ageMs: 0, trains }
+}
+
+async function readSchedule(line: string, station: string, signal: AbortSignal) {
+  const key = `${line}:${station}`
+  const cached = scheduleCache.get(key)
+  if (cached && cached.expiresAt > Date.now()) return cached.body
+  const pending = scheduleInflight.get(key)
+  if (pending) return pending
+  const url = new URL("https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php")
+  url.searchParams.set("line", line)
+  url.searchParams.set("sta", station)
+  url.searchParams.set("lang", "TC")
+  const task = fetch(url, { signal, headers: { Accept: "application/json" } })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(String(response.status))
+      const body: unknown = await response.json()
+      scheduleCache.set(key, { expiresAt: Date.now() + SCHEDULE_TTL_MS, body })
+      scheduleInflight.delete(key)
+      return body
+    })
+    .catch((error: unknown) => {
+      scheduleInflight.delete(key)
+      throw error
+    })
+  scheduleInflight.set(key, task)
+  return task
 }
 
 export type TrainSighting = {

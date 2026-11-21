@@ -100,7 +100,7 @@ export default function App() {
               <div id="about-note" role="dialog" aria-label="關於這幅地圖" tabIndex={-1}>
                 <p>98 個重鐵站可查到站班次，1013 個快拍點可看最新照片。輕鐵 68 個站和高鐵西九龍站不在這份到站資料內。</p>
                 <p>全市視角只顯示港鐵。放大到街道，或打開「交通快拍」，才出現鏡頭。</p>
-                <p>全圖列車沿路軌行駛。位置用到站時間估算，經共用快取更新，不會由每個訪客逐站查詢。</p>
+                <p>全圖列車沿路軌行駛。位置用到站時間估算。</p>
                 <p className="credit">車站位置：地政總署　路軌：OpenStreetMap　到站班次：港鐵　交通快拍：運輸署　底圖：OpenFreeMap</p>
                 <button type="button" onClick={() => setAboutOpen(false)}>
                   關閉

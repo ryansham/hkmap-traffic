@@ -184,6 +184,57 @@ export function dedupeTrains<T extends { line: string; destination: string; lng:
   return kept
 }
 
+export async function assembleTrainFeed(options: {
+  lines: { code: string; paths: PathShape[] }[]
+  stationAt: (code: string) => StationPoint | undefined
+  fetchBody: (line: string, station: string) => Promise<unknown>
+  metersPerMinute?: Record<string, number>
+  limit?: number
+}): Promise<ReportedTrain[]> {
+  const speeds = options.metersPerMinute ?? LINE_METERS_PER_MINUTE
+  const watches = sentinelStations(options.lines, options.stationAt, speeds)
+  const batches = await pool(watches, 4, async (item) => {
+    try {
+      return parseLineTrains(await options.fetchBody(item.line, item.station), item.line, item.station)
+    } catch {
+      return []
+    }
+  })
+  const placed = batches.flat().flatMap((train) => {
+    const spot = locateTrain({
+      paths: options.lines.find((line) => line.code === train.line)?.paths ?? [],
+      stationAt: options.stationAt,
+      stationCode: train.station,
+      destinationCode: train.destination,
+      remainingMinutes: train.minutes <= 0 ? 0.1 : train.minutes + 0.35,
+      metersPerMinute: speeds[train.line] ?? 530,
+    })
+    return spot ? [{ ...train, ...spot }] : []
+  })
+  return dedupeTrains(placed)
+    .slice(0, options.limit ?? 160)
+    .map((train) => ({
+      line: train.line,
+      station: train.station,
+      destination: train.destination,
+      minutes: train.minutes,
+    }))
+}
+
+async function pool<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>) {
+  const results = new Array<R>(items.length)
+  let cursor = 0
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor
+      cursor += 1
+      results[index] = await task(items[index])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()))
+  return results
+}
+
 export function frameTrains(options: {
   stationCode: string | null
   byLine: Record<string, LineScheduleView>

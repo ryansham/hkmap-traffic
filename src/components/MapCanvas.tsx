@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react"
 import { Map, NavigationControl } from "maplibre-gl"
 import type { ExpressionSpecification, Map as MapLibreMap } from "maplibre-gl"
 import { cameras, network } from "../data/index.ts"
+import { CAMERA_STREET_ZOOM, cameraZoomBounds } from "../lib/cameraVisibility.ts"
+import { cameraPlaceName } from "../lib/search.ts"
 import { AerialControl } from "./AerialControl.ts"
 
 const STYLE = "https://tiles.openfreemap.org/styles/liberty"
@@ -23,7 +25,7 @@ const cameraCollection = {
     id: camera.key,
     properties: {
       key: camera.key,
-      label: camera.description.replace(/\s*\[[^\]]+\]\s*$/, ""),
+      label: cameraPlaceName(camera.description),
     },
     geometry: { type: "Point" as const, coordinates: [camera.lng, camera.lat] },
   })),
@@ -48,6 +50,7 @@ type Props = {
   showCameras: boolean
   selectedStation: string | null
   panelOpen: boolean
+  sheetHeight: number
   focusNonce: number
   focusTarget: { lng: number; lat: number } | null
   onSelectStation: (code: string) => void
@@ -141,6 +144,7 @@ export function MapCanvas(props: Props) {
         id: "cameras",
         type: "circle",
         source: "cameras",
+        minzoom: CAMERA_STREET_ZOOM,
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 1.6, 12, 3, 15, 5],
           "circle-color": "#24324a",
@@ -253,8 +257,11 @@ export function MapCanvas(props: Props) {
       for (const id of layerIds("mtr")) visibility(id, props.showMtr)
       visibility("stations", props.showMtr)
       visibility("station-labels", props.showMtr)
-      visibility("cameras", props.showCameras)
-      visibility("camera-labels", props.showCameras)
+      const bounds = cameraZoomBounds(props.showCameras)
+      visibility("cameras", true)
+      visibility("camera-labels", true)
+      if (map.getLayer("cameras")) map.setLayerZoomRange("cameras", bounds.minzoom, 24)
+      if (map.getLayer("camera-labels")) map.setLayerZoomRange("camera-labels", bounds.labelMinZoom, 24)
       return true
     }
     if (apply()) return
@@ -300,13 +307,13 @@ export function MapCanvas(props: Props) {
         top: 0,
         left: 0,
         right: !narrow && props.panelOpen ? 400 : 0,
-        bottom: narrow && props.panelOpen ? Math.round(window.innerHeight * 0.46) : 0,
+        bottom: narrow && props.panelOpen ? props.sheetHeight : 0,
       })
     }
     applyPadding()
     window.addEventListener("resize", applyPadding)
     return () => window.removeEventListener("resize", applyPadding)
-  }, [props.panelOpen])
+  }, [props.panelOpen, props.sheetHeight])
 
   useEffect(() => {
     const map = mapRef.current

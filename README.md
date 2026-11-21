@@ -32,13 +32,10 @@ npm run build
 
 車站位置在建立時寫進專案，頁面不會每次向地政總署索取。到站和照片則在點開時即時讀取。
 
-## 正式發佈
+## 文件
 
-正式版預留為 Cloudflare Workers 免費方案的靜態網站，網址用 `workers.dev`，不經 Worker 轉送政府資料。驗收通過之前不會發佈。
+架構和每一次發佈的紀錄以 [docs/](docs/README.md) 為準。改了使用者看得到的行為，就更新架構；每一次發佈都先在變更紀錄加一則。
 
-通過後可在已登入的 Cloudflare 免費帳戶執行：
+## 發佈
 
-```bash
-npm run build
-npx wrangler deploy
-```
+現行正式版的地址，以及每一次發佈改了什麼，寫在 [docs/CHANGELOG.md](docs/CHANGELOG.md)。

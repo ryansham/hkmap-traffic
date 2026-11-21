@@ -1,23 +1,129 @@
+import { useLayoutEffect, useRef, useState, type PointerEvent } from "react"
 import { cameraByKey, lineByCode, stationByCode } from "../data/index.ts"
 import { formatMtrClock } from "../lib/fetchSchedule.ts"
+import { summarizeNextTrains } from "../lib/nextTrains.ts"
 import type { LineScheduleView } from "../lib/schedule.ts"
+import { cameraPlaceName } from "../lib/search.ts"
 import { useSnapshot, useStationArrivals } from "../lib/useLiveData.ts"
 import type { Selection } from "../types.ts"
 
 type Props = {
   selection: Selection
+  expanded: boolean
+  onExpandedChange: (expanded: boolean) => void
+  onHeight: (height: number) => void
   onClose: () => void
 }
 
-export function InfoPanel({ selection, onClose }: Props) {
+function isNarrow() {
+  return window.matchMedia("(max-width: 760px)").matches
+}
+
+export function InfoPanel({ selection, expanded, onExpandedChange, onHeight, onClose }: Props) {
+  const panelRef = useRef<HTMLElement>(null)
+  const [shift, setShift] = useState(0)
+
+  useLayoutEffect(() => {
+    const node = panelRef.current
+    if (!node) return
+    const report = () => onHeight(Math.round(node.getBoundingClientRect().height))
+    report()
+    const observer = new ResizeObserver(report)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [onHeight, selection, expanded])
+
   return (
-    <aside className="info-panel" role="dialog" aria-labelledby="info-title">
+    <aside
+      ref={panelRef}
+      className="info-panel"
+      data-expanded={expanded ? "true" : "false"}
+      role="dialog"
+      aria-labelledby="info-title"
+      style={shift === 0 ? undefined : { transform: `translateY(${shift}px)` }}
+    >
+      <SheetHandle
+        expanded={expanded}
+        onExpandedChange={onExpandedChange}
+        onClose={onClose}
+        onShift={setShift}
+      />
       {selection.kind === "station" ? (
         <StationBody code={selection.code} onClose={onClose} />
       ) : (
         <CameraBody key={selection.key} cameraKey={selection.key} onClose={onClose} />
       )}
     </aside>
+  )
+}
+
+function SheetHandle({
+  expanded,
+  onExpandedChange,
+  onClose,
+  onShift,
+}: {
+  expanded: boolean
+  onExpandedChange: (expanded: boolean) => void
+  onClose: () => void
+  onShift: (shift: number) => void
+}) {
+  const startY = useRef(0)
+  const dragged = useRef(false)
+
+  function onPointerDown(event: PointerEvent<HTMLButtonElement>) {
+    if (!isNarrow()) return
+    dragged.current = false
+    startY.current = event.clientY
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function onPointerMove(event: PointerEvent<HTMLButtonElement>) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+    const delta = event.clientY - startY.current
+    if (Math.abs(delta) > 6) dragged.current = true
+    onShift(Math.max(-140, delta))
+  }
+
+  function endDrag(event: PointerEvent<HTMLButtonElement>) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+    event.currentTarget.releasePointerCapture(event.pointerId)
+    const delta = event.clientY - startY.current
+    onShift(0)
+    if (event.type === "pointercancel" || !dragged.current) return
+    if (delta > 56) {
+      if (expanded) onExpandedChange(false)
+      else onClose()
+      return
+    }
+    if (delta < -40) onExpandedChange(true)
+  }
+
+  function onClick() {
+    if (dragged.current) {
+      dragged.current = false
+      return
+    }
+    if (!isNarrow()) return
+    onExpandedChange(!expanded)
+  }
+
+  return (
+    <div className="sheet-handle">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-label={expanded ? "收起詳情。向下拉可關閉。" : "展開詳情。向下拉可關閉。"}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onClick={onClick}
+      >
+        <span className="grabber" />
+        <span className="handle-label">{expanded ? "向下拉可收起" : "向上拉看詳情，向下拉關閉"}</span>
+      </button>
+    </div>
   )
 }
 
@@ -39,6 +145,12 @@ function StationBody({ code, onClose }: { code: string; onClose: () => void }) {
       </div>
     )
   }
+  const lines = station.lines.flatMap((line) => {
+    const record = lineByCode.get(line)
+    return record ? [{ code: record.code, name: record.name, color: record.color }] : []
+  })
+  const summary = summarizeNextTrains(lines, arrivals.byLine)
+  const delayed = station.lines.some((line) => arrivals.byLine[line]?.delay)
 
   return (
     <>
@@ -50,6 +162,28 @@ function StationBody({ code, onClose }: { code: string; onClose: () => void }) {
         </div>
         <CloseButton onClose={onClose} />
       </header>
+      <div className="sheet-peek">
+        {delayed ? <p className="delay">港鐵表示服務有延誤。</p> : null}
+        {arrivals.phase === "loading" ? <p className="status-copy">正在查看到站班次。</p> : null}
+        {arrivals.phase !== "loading" && summary.trains.length === 0 ? (
+          <p className="status-copy">向上拉可看這個站的班次。</p>
+        ) : null}
+        {summary.trains.length > 0 ? (
+          <ul className="next-list">
+            {summary.trains.map((train) => (
+              <li key={`${train.lineCode}-${train.destination}`}>
+                <i style={{ background: train.color }} />
+                <span>
+                  {train.lineName} · 往{train.destination}
+                  {train.platform !== "—" ? ` · 月台 ${train.platform}` : ""}
+                </span>
+                <strong>{train.minutesLabel}</strong>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {summary.extra > 0 ? <p className="next-more">還有 {summary.extra} 個方向，向上拉可看。</p> : null}
+      </div>
       <div className="panel-scroll">
         <div className="line-pills">
           {station.lines.map((line) => {
@@ -142,7 +276,7 @@ function CameraBody({ cameraKey, onClose }: { cameraKey: string; onClose: () => 
       </div>
     )
   }
-  const place = camera.description.replace(/\s*\[[^\]]+\]\s*$/, "")
+  const place = cameraPlaceName(camera.description)
 
   return (
     <>
@@ -156,6 +290,16 @@ function CameraBody({ cameraKey, onClose }: { cameraKey: string; onClose: () => 
         </div>
         <CloseButton onClose={onClose} />
       </header>
+      <div className="sheet-peek">
+        {snapshot.phase === "loading" ? <p className="status-copy">正在載入最新照片。</p> : null}
+        {snapshot.phase === "error" ? <p className="status-copy">暫時未能提供這張照片。向上拉可再試。</p> : null}
+        {snapshot.phase === "ready" ? (
+          <p className="status-copy">
+            {snapshot.updatedLabel ? `照片更新時間 ${snapshot.updatedLabel}。` : "照片已載入。"}
+            向上拉可看。
+          </p>
+        ) : null}
+      </div>
       <div className="panel-scroll">
         {snapshot.phase === "loading" ? <p className="status-copy">正在載入最新照片。</p> : null}
         {snapshot.phase === "error" ? <p className="status-copy">暫時未能提供這張照片。</p> : null}
@@ -163,9 +307,7 @@ function CameraBody({ cameraKey, onClose }: { cameraKey: string; onClose: () => 
           <figure className="snapshot">
             <img src={snapshot.imageUrl} alt={`${place}的最新交通快拍`} />
             <figcaption>
-              {snapshot.updatedLabel ? `照片更新時間 ${snapshot.updatedLabel}。` : "未能讀取照片的更新時間。"}
-              {" "}
-              若照片寫著「暫時未能提供服務」，代表這個鏡頭現在沒有新照片。
+              {snapshot.updatedLabel ? `照片更新時間 ${snapshot.updatedLabel}。` : "未能讀取照片的更新時間。"} 若照片寫著「暫時未能提供服務」，代表這個鏡頭現在沒有新照片。
             </figcaption>
           </figure>
         ) : null}
